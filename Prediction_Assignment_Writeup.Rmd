@@ -1,0 +1,161 @@
+---
+title: "Prediction Assignment Writeup"
+author: "Madhavi Reddy"
+date: "12/24/2017"
+output:
+  html_document: default
+  word_document: default
+---
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har
+
+## Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+```{r, eval=TRUE,warning=FALSE,message=FALSE}
+
+# Set working directory
+echo = TRUE
+setwd("/Users/MadhaviReddy/Practical Machine Learning/")
+rm(list=ls())
+
+# Load required packages
+library(rpart)
+library(caret)
+library(tidyverse)
+
+# Load the data
+downloadURL1 <-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+downloadFile1 <- './pml-training.csv'
+download.file(downloadURL1, downloadFile1)
+
+downloadURL2 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+downloadFile2 <- './pml-testing.csv'
+download.file(downloadURL2, downloadFile2)
+
+Data_Training <- read_csv("pml-training.csv")
+Data_Testing <- read_csv("pml-testing.csv")
+
+str(Data_Training)
+str(Data_Testing)
+```
+
+### Looking at the Training and Testing Datasets, there appears to be a lot of variables with NA's and Nulls. Removing these variables will make the data a lot more cleaner to work with.
+
+## Cleanse the Training data
+
+```{r, eval=TRUE}
+
+NA_Training <-sapply(Data_Training, function(y) sum(length(which(is.na(y)))))
+NA_Training <- data.frame(NA_Training)
+NA_Training <- tibble::rownames_to_column(NA_Training)
+
+Nulls_Training <- sapply(Data_Training, function(y) sum(length(which(y==""))))
+Nulls_Training <- data.frame(Nulls_Training)
+Nulls_Training <- tibble::rownames_to_column(Nulls_Training)
+
+NA_Nulls_Training <- full_join(NA_Training, Nulls_Training, by=c("rowname","rowname"))
+NA_Nulls_Training <- mutate(NA_Nulls_Training, NANulls_Training=NA_Training+Nulls_Training)
+
+# Filter the variables without NULLs and NA's from Training data set. 57 variables are retained.
+
+Not_NA_Null_Training <- filter(NA_Nulls_Training, NANulls_Training == 0)
+Col_Training <- Not_NA_Null_Training$rowname
+Training_Cleansed <- select(Data_Training,one_of(Col_Training))
+str(Training_Cleansed)
+
+```
+
+## Cleanse the Testing data
+
+```{r, eval=TRUE}
+
+NA_Testing <-sapply(Data_Testing, function(y) sum(length(which(is.na(y)))))
+NA_Testing <- data.frame(NA_Testing)
+NA_Testing <- tibble::rownames_to_column(NA_Testing)
+
+Nulls_Testing <- sapply(Data_Testing, function(y) sum(length(which(y==""))))
+Nulls_Testing <- data.frame(Nulls_Testing)
+Nulls_Testing <- tibble::rownames_to_column(Nulls_Testing)
+
+NA_Nulls_Testing <- full_join(NA_Testing, Nulls_Testing, by=c("rowname","rowname"))
+NA_Nulls_Testing <- mutate(NA_Nulls_Testing, NANulls_Testing = NA_Testing + Nulls_Testing)
+
+
+# Filter the variables without NULLs and NA's from Testing data set. 60 variables are retained.
+
+Not_NA_Null_Testing <- filter(NA_Nulls_Testing, NANulls_Testing == 0)
+Col_Testing <- Not_NA_Null_Testing$rowname
+Testing_Cleansed <- select(Data_Testing,one_of(Col_Testing))
+str(Testing_Cleansed)
+
+```
+
+## Split the data into 70% training and 30% test data.
+
+```{r, eval=TRUE}
+
+Training_Partition = createDataPartition(Training_Cleansed$classe, p = 0.75, list=FALSE)
+MyTraining = Training_Cleansed[Training_Partition,]
+MyTesting = Training_Cleansed[-Training_Partition,]
+
+```
+## Decision Tree Algorithm
+
+```{r, eval=TRUE}
+
+set.seed(12345)
+ModelDT <- train(classe~.,MyTraining[-1], method="rpart")
+ModelDT
+
+```
+
+## Estimate the performance of Decision Tree model with MyTesting data set
+
+```{r, eval=TRUE}
+
+PredictionDT <- predict(ModelDT, MyTesting)
+confusionMatrix(PredictionDT, MyTesting$classe)
+
+```
+## Random Forest Model
+
+```{r, eval=TRUE}
+
+set.seed(12345)
+ModelRF <- train(classe ~. ,MyTraining[-1], method="rf")
+ModelRF
+
+```
+
+## Estimate the performance of Random Forest model with MyTesting data set
+
+```{r, eval=TRUE}
+
+PredictionRF <- predict(ModelRF, MyTesting)
+confusionMatrix(PredictionRF, MyTesting$classe)
+
+```
+
+# Analysis
+
+Random Forest model performed better than the Decision Trees algorithm with an accuracy of 99.8% compared to Decision Trees accuracy of 68.5%. Expected out-of-sample error is calculated as 1 - Accuracy for predictions made against the cross-validation set, leaving Random Forest model OSE at 0.002 or 0.2% and that is negligible. With an Accuracy of 99.8% and OSE of 0.2%, out of the 20 cases from our test data set, very few or none of the test samples will be missclassified.
+
+# Making prediction on the 20 cases from initial Testing data using Random Forest model
+
+```{r, eval=TRUE}
+
+predict(ModelRF, Data_Testing)
+
+```
+
+Evaluated the outcomes against course prediction quiz and the results are 100% accurate.
